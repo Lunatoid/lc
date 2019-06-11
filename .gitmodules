@@ -1,0 +1,3 @@
+[submodule "odin-fs"]
+	path = odin-fs
+	url = https://github.com/Lunatoid/odin-fs
