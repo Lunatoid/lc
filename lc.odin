@@ -116,44 +116,45 @@ Scan_Entry :: struct {
     code_count:    u64,
 }
 
+Options :: struct {
+    recursive: bool,
+    
+    override_ext: bool,
+    extensions: string,
+    
+    override_sc: bool,
+    single_comments: ^[dynamic]string,
+    
+    // @TODO: multiple multiline comment
+    override_mc: bool,
+    mc_begin: string,
+    mc_end: string,
+    
+    thread_count: int,
+    buffer_size: int,
+    full_paths: bool,
+};
+
+Thread_Data :: struct {
+    entry:   ^Scan_Entry,
+    options: ^Options,
+};
+
 main :: proc() {
     if len(os.args) <= 1 {
         show_help();
         return;
     }
     
-    Options :: struct {
-        recursive: bool,
-        
-        override_ext: bool,
-        extensions: string,
-        
-        override_sc: bool,
-        single_comments: ^[dynamic]string,
-        
-        // @TODO: multiple multiline comment
-        override_mc: bool,
-        mc_begin: string,
-        mc_end: string,
-        
-        thread_count: int,
-        buffer_size: int,
-        full_paths: bool,
-    };
-    
     options: Options;
+    defer delete(options.single_comments^);
     
     paths: [dynamic]string;
     defer delete(paths);
     
     // Parse arguments
-    skip_first := false;
-    for arg in os.args {
-        if !skip_first {
-            skip_first = true;
-            continue;
-        }
-        
+    start_time := time.now();
+    for arg in os.args[1:] {
         if arg[0] != '-' {
             path := fs.normalize_path(arg);
         
@@ -325,132 +326,62 @@ main :: proc() {
     blank_count_total   : u64 = 0;
     code_count_total    : u64 = 0;
     
-    Thread_Data :: struct {
-        entry:   ^Scan_Entry,
-        options: ^Options,
-    };
-    
-    scan_file :: proc(t: ^thread.Thread) -> int {
-        data    := cast(^Thread_Data) t.data;
-        entry   := data.entry;
-        options := data.options;
-        
-        file, error := os.open(entry.info.path);
-        
-        if error != os.ERROR_NONE {
-            fmt.printf("[!] cannot open file '%v', skipping... (error code: %v)\n", entry.info.path, error);
-            return 0;
-        }
-                
-        in_comment := false;
-        
-        line := "";
-        cont := true;
-        for true {
-            if !cont do break;
-        
-            cont = fs.getline(file, &line, options.buffer_size);
-            line = strings.trim_space(line);
-            
-            // Blank lines
-            if len(line) == 0 {
-                entry.blank_count += 1;
-                continue;
-            }
-            
-            // Single-comment check
-            if !in_comment {
-                skip_line := false;
-                
-                for i in 0..<len(options.single_comments) {
-                    if len(options.single_comments[i]) > len(line) do continue;
-                    
-                    if strings.contains(line, options.single_comments[i]) {
-                        entry.comment_count += 1;
-                        skip_line = true;
-                        break;
-                    }
-                }
-                
-                if skip_line do continue;
-            }
-            
-            if len(line) >= len(options.mc_begin) &&
-               len(line) >= len(options.mc_end) {
-                if strings.contains(line, options.mc_begin) {
-                    entry.comment_count += 1;
-                    in_comment = true;
-                    continue;
-                }
-                
-                end := line[len(line) - len(options.mc_end):];
-                if end == options.mc_end && in_comment {
-                    in_comment = false;
-                    continue;
-                }
-            }
-            
-            entry.code_count += 1;
-        }
-        
-        entry.scanned = true;
-        os.close(file);
-        return 0;
-    }
-
-    
-    start_time := time.now();
     total_bytes: f64 = 0.0;
-    
-    threads := make([dynamic]^thread.Thread, 0, options.thread_count);
-    defer delete(threads);
-    
     next_file_index := 0;
-    
-    start_new_thread :: proc(entries: ^[dynamic]Scan_Entry, index: int, options: ^Options) -> ^thread.Thread {
-        t := thread.create(scan_file);
         
-        assert(t != nil);
+    if options.thread_count > 1 {
+        threads := make([dynamic]^thread.Thread, 0, options.thread_count);
+        defer delete(threads);
         
-        t.user_index = index;
-        data := new(Thread_Data);
-        data.entry = &((entries^)[index]);
-        data.options = options;
+        start_new_thread :: proc(entries: ^[dynamic]Scan_Entry, index: int, options: ^Options) -> ^thread.Thread {
+            t := thread.create(scan_file);
+            
+            assert(t != nil);
+            
+            t.user_index = index;
+            data := new(Thread_Data);
+            data.entry = &((entries^)[index]);
+            data.options = options;
+            
+            t.data = data;
+            thread.start(t);
+            return t;
+        }
         
-        t.data = data;
-        thread.start(t);
-        return t;
-    }
-    
-    for in 0..<options.thread_count {
-        if next_file_index < len(entries) {
-            append(&threads, start_new_thread(&entries, next_file_index, &options));
+        for in 0..<options.thread_count {
+            if next_file_index < len(entries) {
+                append(&threads, start_new_thread(&entries, next_file_index, &options));
+                next_file_index += 1;
+            }
+        }
+        
+        all_threads_done := false;
+        for next_file_index < len(entries) || !all_threads_done {
+            for i := 0; i < len(threads); {
+                if t := threads[i]; thread.is_done(t) {
+                    e := entries[t.user_index];
+                
+                    thread.destroy(t);    
+                    ordered_remove(&threads, i);
+                    
+                    if next_file_index < len(entries) {
+                        append(&threads, start_new_thread(&entries, next_file_index, &options));
+                        next_file_index += 1;
+                    }
+                    
+                    all_threads_done = len(threads) == 0;
+                } else {
+                    i += 1;
+                }
+            }
+        }
+    } else {
+        // If our thread_count == 1 we're not gonna start any threads
+        for next_file_index < len(entries) {
+            scan_file(&entries[next_file_index], &options);
             next_file_index += 1;
         }
     }
-    
-    all_threads_done := false;
-    for next_file_index < len(entries) || !all_threads_done {
-        for i := 0; i < len(threads); {
-            if t := threads[i]; thread.is_done(t) {
-                e := entries[t.user_index];
-            
-                thread.destroy(t);    
-                ordered_remove(&threads, i);
-                
-                if next_file_index < len(entries) {
-                    append(&threads, start_new_thread(&entries, next_file_index, &options));
-                    next_file_index += 1;
-                }
-                
-                all_threads_done = len(threads) == 0;
-            } else {
-                i += 1;
-            }
-        }
-    }
-    
-    end_time := time.now();
     
     // Print the header
     print_header(longest_path);
@@ -477,7 +408,6 @@ main :: proc() {
         };
         
         print_counts(counts);
-        
     }
     
     total := [?]u64 {
@@ -487,7 +417,7 @@ main :: proc() {
         comment_count_total + blank_count_total + code_count_total,
     };
     
-    // Convert to KiB    
+    // Promote bytes
     mag := "b";
     if total_bytes > 1024.0 {
         total_bytes /= 1024.0;
@@ -518,6 +448,81 @@ main :: proc() {
     print_seperator(longest_path);
     print_header(longest_path);
         
-    diff := time.diff(start_time, end_time);
+    diff := time.diff(start_time, time.now());
     fmt.printf("Scanned %v files of %v %v total in %v seconds", len(entries), total_bytes, mag, time.duration_seconds(diff));
+}
+
+
+@private
+scan_file :: proc { scan_file_threaded, scan_file_direct };
+
+@private
+scan_file_threaded:: proc(t: ^thread.Thread) -> int {
+    data := cast(^Thread_Data) t.data;
+    return scan_file_direct(data.entry, data.options);
+}
+
+@private
+scan_file_direct :: proc(entry: ^Scan_Entry, options: ^Options) -> int {
+    file, error := os.open(entry.info.path);
+    
+    if error != os.ERROR_NONE {
+        fmt.printf("[!] cannot open file '%v', skipping... (error code: %v)\n", entry.info.path, error);
+        return 0;
+    }
+            
+    in_comment := false;
+    
+    line := "";
+    cont := true;
+    for true {
+        if !cont do break;
+    
+        cont = fs.getline(file, &line, options.buffer_size);
+        line = strings.trim_space(line);
+        
+        // Blank lines
+        if len(line) == 0 {
+            entry.blank_count += 1;
+            continue;
+        }
+        
+        // Single-comment check
+        if !in_comment {
+            skip_line := false;
+            
+            for i in 0..<len(options.single_comments) {
+                if len(options.single_comments[i]) > len(line) do continue;
+                
+                if strings.contains(line, options.single_comments[i]) {
+                    entry.comment_count += 1;
+                    skip_line = true;
+                    break;
+                }
+            }
+            
+            if skip_line do continue;
+        }
+        
+        if len(line) >= len(options.mc_begin) &&
+           len(line) >= len(options.mc_end) {
+            if strings.contains(line, options.mc_begin) {
+                entry.comment_count += 1;
+                in_comment = true;
+                continue;
+            }
+            
+            end := line[len(line) - len(options.mc_end):];
+            if end == options.mc_end && in_comment {
+                in_comment = false;
+                continue;
+            }
+        }
+        
+        entry.code_count += 1;
+    }
+    
+    entry.scanned = true;
+    os.close(file);
+    return 0;
 }
