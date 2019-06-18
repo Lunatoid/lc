@@ -155,6 +155,23 @@ main :: proc() {
         return;
     }
     
+    {
+        handle, err := os.open(os.args[1]);
+    
+        cont := true;
+        for cont {
+            line: string;
+            cont, line = fs.getline(handle);
+            
+            fmt.println(line);
+        }
+        
+        os.close(handle);
+        return;
+    }
+    
+    start_time := time.now();
+    
     options: Options;
     defer if options.override_ext do delete(options.extensions);
     defer delete(options.single_comments^);
@@ -170,7 +187,6 @@ main :: proc() {
     }
     
     // Parse arguments
-    start_time := time.now();
     for arg in os.args[1:] {
         if arg[0] != '-' {    
             path := fs.normalize_path(arg);
@@ -188,9 +204,6 @@ main :: proc() {
             // It's an option, parse
             opt := arg;
             set := "";
-            
-            defer delete(set);
-            defer delete(opt);
             
             index := strings.last_index_any(arg, "=");
             
@@ -292,7 +305,7 @@ main :: proc() {
     if options.thread_count <= 0 {
         options.thread_count = 4;
     }
-    
+        
     if options.buffer_size <= 0 {
         options.buffer_size = 32;
     }
@@ -503,17 +516,21 @@ scan_file_direct :: proc(entry: ^Scan_Entry, options: ^Options) -> int {
             
     in_comment := false;
     
-    cont := true;
-    for true {
-        if !cont do break;
+    blank := 0;
     
-        line: string;
-        cont, line = fs.getline(file, options.buffer_size);
-        defer if len(line) > 0 do delete(line);
+    cont := true;
+    for cont {
+        full_line: string;
+        cont, full_line = fs.getline(file, options.buffer_size);
+        defer if len(full_line) > 0 do delete(full_line);
+        
+        line := strings.trim_space(full_line);
         
         // Blank lines
+        // fmt.printf("%v | '%v'\n", len(line), line);
         if len(line) == 0 {
             entry.blank_count += 1;
+            blank += 1;
             continue;
         }
         
@@ -551,7 +568,7 @@ scan_file_direct :: proc(entry: ^Scan_Entry, options: ^Options) -> int {
         
         entry.code_count += 1;
     }
-    
+        
     entry.scanned = true;
     os.close(file);
     return 0;
