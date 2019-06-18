@@ -25,17 +25,22 @@ print_counts :: proc(counts: [COLUMNS]u64) {
     for i in 0..<len(counts) {
         count_len := strings.rune_count(fmt.tprintf("%v", counts[i]));
     
-        text := fmt.tprintf("%v |", counts[i]);
+        text := fmt.aprintf("%v |", counts[i]);
         pad  := strings.right_justify(" ", HEADER_WIDTH - count_len - 1, " ");
         
         fmt.printf("%v%v", pad, text);
+        
+        delete(text);
+        delete(pad);
     }
     fmt.println();
 }
 
-// @TODO: buffering the input into a string and then printing it is probably aster
+// @TODO: buffering the input into a string and then printing it is probably faster
 print_seperator:: proc(longest_path: int) {
-    pad  := strings.right_justify("-", longest_path + PATH_PADDING, "-");
+    pad := strings.right_justify("-", longest_path + PATH_PADDING, "-");
+    defer delete(pad);
+    
     fmt.printf("%v|", pad);
     
     for in 0..<COLUMNS {
@@ -48,12 +53,16 @@ print_seperator:: proc(longest_path: int) {
 }
 
 print_header :: proc(longest_path: int) {
-    pad := strings.right_justify(" ", longest_path + PATH_PADDING, " ");
-    fmt.printf("%v|", pad);
+    {
+        pad := strings.right_justify(" ", longest_path + PATH_PADDING, " ");    
+        fmt.printf("%v|", pad);
+        delete(pad);
+    }
     
     for i in 0..<COLUMNS {
-        pad = strings.right_justify(" ", HEADER_WIDTH - len(categories[i]) - 2, " ");
+        pad := strings.right_justify(" ", HEADER_WIDTH - len(categories[i]) - 2, " ");
         fmt.printf(" %v%v |", categories[i], pad);
+        delete(pad);
     }
     fmt.println();
 }
@@ -147,22 +156,31 @@ main :: proc() {
     }
     
     options: Options;
+    defer if options.override_ext do delete(options.extensions);
     defer delete(options.single_comments^);
+    defer if options.override_mc do delete(options.mc_begin);
+    defer if options.override_mc do delete(options.mc_end);
     
     paths: [dynamic]string;
-    defer delete(paths);
+    defer {
+        for i in 0..<len(paths) {
+            delete(paths[i]);
+        }
+        delete(paths);
+    }
     
     // Parse arguments
     start_time := time.now();
     for arg in os.args[1:] {
-        if arg[0] != '-' {
+        if arg[0] != '-' {    
             path := fs.normalize_path(arg);
-        
+            
             // Check if the directory is valid
-            _, error := fs.get_dir_info(path);
+            info, error := fs.get_dir_info(path);
+            defer fs.delete_dir_info(&info);
             
             if error == fs.Dir_Error.None {
-                append(&paths, path);
+                append(&paths, strings.clone(path));
             } else {
                 fmt.printf("[!] Cannot open directory '%v' with error '%v'\n", path, error);
             }
@@ -170,6 +188,9 @@ main :: proc() {
             // It's an option, parse
             opt := arg;
             set := "";
+            
+            defer delete(set);
+            defer delete(opt);
             
             index := strings.last_index_any(arg, "=");
             
@@ -278,14 +299,17 @@ main :: proc() {
     
     files: [dynamic]fs.File_Info;
     
+    // We don't need to delete the File_Info's because they get copied to the Scan_Entry's
+    defer delete(files);
+    
     // Get the files
     for path in paths {
         tmp, error := fs.get_all_files(path, true, options.recursive, options.extensions);
-        
         if error == fs.Dir_Error.None {
             for file in tmp {
                 append(&files, file);
             }
+            
             delete(tmp);
         } else {
             fmt.printf("[!] Cannot open directory '%v' with error '%v'\n", path, error);
@@ -299,7 +323,12 @@ main :: proc() {
     
     // Create scan entries and copy File_Info's
     entries := make([dynamic]Scan_Entry, len(files));
-    defer delete(entries);
+    defer {
+        for i in 0..<len(entries) {
+            fs.delete_file_info(&entries[i].info);
+        }
+        delete(entries);
+    }
     
     for i in 0..<len(files) {
         entries[i].info = files[i];
@@ -318,9 +347,6 @@ main :: proc() {
             }
         }
     }
-    
-    delete(files);
-    files = nil;
     
     comment_count_total : u64 = 0;
     blank_count_total   : u64 = 0;
@@ -389,8 +415,10 @@ main :: proc() {
     
     for e in entries {
         path := (options.full_paths) ? e.info.path : fs.get_filename(e.info.path);
-        
         pad := strings.right_justify(" ", longest_path - len(path) + PATH_PADDING, " ");
+        
+        defer delete(pad);
+        
         total_bytes += f64(e.info.file_size);
         
         fmt.printf("%v%v|", path, pad);
@@ -442,6 +470,8 @@ main :: proc() {
     print_seperator(longest_path);
     
     pad := strings.right_justify(" ", longest_path + PATH_PADDING, " ");
+    defer delete(pad);
+    
     fmt.printf("%v|", pad);
     print_counts(total);
     
@@ -473,13 +503,13 @@ scan_file_direct :: proc(entry: ^Scan_Entry, options: ^Options) -> int {
             
     in_comment := false;
     
-    line := "";
     cont := true;
     for true {
         if !cont do break;
     
-        cont = fs.getline(file, &line, options.buffer_size);
-        line = strings.trim_space(line);
+        line: string;
+        cont, line = fs.getline(file, options.buffer_size);
+        defer if len(line) > 0 do delete(line);
         
         // Blank lines
         if len(line) == 0 {
