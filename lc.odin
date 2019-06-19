@@ -155,21 +155,6 @@ main :: proc() {
         return;
     }
     
-    {
-        handle, err := os.open(os.args[1]);
-    
-        cont := true;
-        for cont {
-            line: string;
-            cont, line = fs.getline(handle);
-            
-            fmt.println(line);
-        }
-        
-        os.close(handle);
-        return;
-    }
-    
     start_time := time.now();
     
     options: Options;
