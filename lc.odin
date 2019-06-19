@@ -159,7 +159,7 @@ main :: proc() {
     
     options: Options;
     defer if options.override_ext do delete(options.extensions);
-    defer delete(options.single_comments^);
+    defer if options.single_comments != nil do delete(options.single_comments^);
     defer if options.override_mc do delete(options.mc_begin);
     defer if options.override_mc do delete(options.mc_end);
     
@@ -178,7 +178,7 @@ main :: proc() {
             
             // Check if the directory is valid
             info, error := fs.get_dir_info(path);
-            defer fs.delete_dir_info(&info);
+            defer if error == fs.Dir_Error.None do fs.delete_dir_info(&info);
             
             if error == fs.Dir_Error.None {
                 append(&paths, strings.clone(path));
