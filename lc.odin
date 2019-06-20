@@ -97,6 +97,9 @@ show_help :: proc() {
     fmt.printf("                           |\n");
     fmt.printf("      -fp  --full-paths    | shows the full filepath instead of just the filename\n");
     fmt.printf("                           | default: false\n");
+    fmt.printf("                           |\n");
+    fmt.printf("      -or  --only-results  | doesn't show the per-file results, just the total sum\n");
+    fmt.printf("                           | default: false\n");
 }
 
 parse_comma_options :: proc(s: string) -> ^[dynamic]string {
@@ -141,7 +144,9 @@ Options :: struct {
     
     thread_count: int,
     buffer_size: int,
+    
     full_paths: bool,
+    only_results: bool,
 };
 
 Thread_Data :: struct {
@@ -257,6 +262,12 @@ main :: proc() {
                     options.full_paths = true;
                 } else {
                     fmt.printf("[!] Unexpected arguments for option '%v'\n", opt);
+                }
+            } else if opt == "-or" || opt == "--only-results" {
+                if set == "" {
+                    options.only_results = true;
+                } else {
+                    fmt.println("[!] Unexpected arguments for option '%v'\n", opt);
                 }
             } else {
                 fmt.printf("[!] Unknown option '%v'\n", opt);
@@ -426,32 +437,35 @@ main :: proc() {
     }
     
     // Print the header
-    print_header(longest_path);
-    print_seperator(longest_path);
+    if !options.only_results {
+        print_header(longest_path);
+        print_seperator(longest_path);
+    }
     
     for e in entries {
-        path := (options.full_paths) ? e.info.path : fs.get_filename(e.info.path);
-        pad := strings.right_justify(" ", longest_path - len(path) + PATH_PADDING, " ");
-        
-        defer delete(pad);
-        
-        total_bytes += f64(e.info.file_size);
-        
-        fmt.printf("%v%v|", path, pad);
-        
         // Add these counts to the total
         comment_count_total += e.comment_count;
         blank_count_total   += e.blank_count;
         code_count_total    += e.code_count;
         
-        counts := [COLUMNS]u64 {
-            e.comment_count,
-            e.blank_count,
-            e.code_count,
-            e.comment_count + e.blank_count + e.code_count
-        };
+        total_bytes += f64(e.info.file_size);
         
-        print_counts(counts);
+        if !options.only_results {
+            path := (options.full_paths) ? e.info.path : fs.get_filename(e.info.path);
+            pad := strings.right_justify(" ", longest_path - len(path) + PATH_PADDING, " ");
+            
+            defer delete(pad);
+            
+            fmt.printf("%v%v|", path, pad);
+            counts := [COLUMNS]u64 {
+                e.comment_count,
+                e.blank_count,
+                e.code_count,
+                e.comment_count + e.blank_count + e.code_count
+            };
+            
+            print_counts(counts);
+        }
     }
     
     total := [?]u64 {
