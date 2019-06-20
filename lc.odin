@@ -98,7 +98,7 @@ show_help :: proc() {
     fmt.printf("      -fp  --full-paths    | shows the full filepath instead of just the filename\n");
     fmt.printf("                           | default: false\n");
     fmt.printf("                           |\n");
-    fmt.printf("      -or  --only-results  | doesn't show the per-file results, just the total sum\n");
+    fmt.printf("      -or  --only-results  | don't show the per-file results, just the total sum\n");
     fmt.printf("                           | default: false\n");
 }
 
