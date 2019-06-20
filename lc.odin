@@ -158,7 +158,7 @@ main :: proc() {
     start_time := time.now();
     
     options: Options;
-    defer if options.override_ext do delete(options.extensions);
+    // defer if options.override_ext do delete(options.extensions);
     defer if options.single_comments != nil do delete(options.single_comments^);
     defer if options.override_mc do delete(options.mc_begin);
     defer if options.override_mc do delete(options.mc_end);
@@ -300,9 +300,25 @@ main :: proc() {
     // We don't need to delete the File_Info's because they get copied to the Scan_Entry's
     defer delete(files);
     
+    // Split extentions
+    exts: [dynamic]string;
+    
+    for true {
+        index := strings.index_any(options.extensions, ".");
+    
+        if index == -1 do break;
+    
+        new_str := options.extensions[:index];
+        
+        append(&exts, new_str);
+        options.extensions = options.extensions[index+1:];
+    }
+    new_str := options.extensions;
+    append(&exts, new_str);
+    
     // Get the files
     for path in paths {
-        tmp, error := fs.get_all_files(path, true, options.recursive, options.extensions);
+        tmp, error := fs.get_all_files(path, true, options.recursive, ..exts[:]);
         if error == fs.Dir_Error.None {
             for file in tmp {
                 append(&files, file);
@@ -313,6 +329,8 @@ main :: proc() {
             fmt.printf("[!] Cannot open directory '%v' with error '%v'\n", path, error);
         }
     }
+    
+    if len(exts) > 0 do delete(exts);
     
     if len(files) == 0 {
         fmt.printf("[!] No files scanned");
@@ -467,15 +485,15 @@ main :: proc() {
     
     print_seperator(longest_path);
     
-    pad := strings.right_justify(" ", longest_path + PATH_PADDING, " ");
-    defer delete(pad);
-    
-    fmt.printf("%v|", pad);
-    print_counts(total);
-    
-    print_seperator(longest_path);
-    print_header(longest_path);
-        
+	pad := strings.right_justify(" ", longest_path + PATH_PADDING, " ");
+	defer delete(pad);
+	
+	fmt.printf("%v|", pad);
+	print_counts(total);
+	
+	print_seperator(longest_path);
+	print_header(longest_path);
+
     diff := time.diff(start_time, time.now());
     fmt.printf("Scanned %v files of %v %v total in %v seconds", len(entries), total_bytes, mag, time.duration_seconds(diff));
 }
@@ -501,8 +519,6 @@ scan_file_direct :: proc(entry: ^Scan_Entry, options: ^Options) -> int {
             
     in_comment := false;
     
-    blank := 0;
-    
     cont := true;
     for cont {
         full_line: string;
@@ -512,10 +528,9 @@ scan_file_direct :: proc(entry: ^Scan_Entry, options: ^Options) -> int {
         line := strings.trim_space(full_line);
         
         // Blank lines
-        // fmt.printf("%v | '%v'\n", len(line), line);
         if len(line) == 0 {
-            entry.blank_count += 1;
-            blank += 1;
+            if !in_comment do entry.blank_count   += 1;
+            else           do entry.comment_count += 1;
             continue;
         }
         
@@ -546,12 +561,14 @@ scan_file_direct :: proc(entry: ^Scan_Entry, options: ^Options) -> int {
             
             end := line[len(line) - len(options.mc_end):];
             if end == options.mc_end && in_comment {
+                entry.comment_count += 1;
                 in_comment = false;
                 continue;
             }
         }
         
-        entry.code_count += 1;
+        if !in_comment do entry.code_count    += 1;
+        else           do entry.comment_count += 1;
     }
         
     entry.scanned = true;
