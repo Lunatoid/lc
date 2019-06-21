@@ -101,22 +101,22 @@ show_help :: proc() {
     fmt.printf("                           | default: false\n");
 }
 
-parse_comma_options :: proc(s: string) -> ^[dynamic]string {
+parse_comma_options :: proc(s: string) -> [dynamic]string {
     opts: [dynamic]string;
     
     for {
         index := strings.index_any(s, ",");
     
         if index == -1 do break;
-    
+        
         new_str := s[:index];
+        
         append(&opts, new_str);
         s = s[index+1:];
     }
     
     append(&opts, s);
-    
-    return &opts;
+    return opts;
 }
 
 Scan_Entry :: struct {
@@ -134,9 +134,9 @@ Options :: struct {
     extensions: string,
     
     override_sc: bool,
-    single_comments: ^[dynamic]string,
+    single_comments: [dynamic]string,
     
-    // @TODO: multiple multiline comment
+    // @TODO: multiple multiline comment?
     override_mc: bool,
     mc_begin: string,
     mc_end: string,
@@ -162,10 +162,7 @@ main :: proc() {
     start_time := time.now();
     
     options: Options;
-    // defer if options.override_ext do delete(options.extensions);
-    defer if options.single_comments != nil do delete(options.single_comments^);
-    defer if options.override_mc do delete(options.mc_begin);
-    defer if options.override_mc do delete(options.mc_end);
+    defer if options.single_comments != nil do delete(options.single_comments);
     
     paths: [dynamic]string;
     defer {
@@ -233,8 +230,8 @@ main :: proc() {
                     if set != "" {
                         mc := parse_comma_options(set);
                         
-                        defer delete(mc^);
-                                            
+                        defer delete(mc);
+                        
                         if len(mc) != 2 {
                             fmt.printf("[!] Expected 2 arguments for option '%v' but got %v", opt, len(mc));
                         } else {
@@ -242,8 +239,8 @@ main :: proc() {
                             
                             // We know that the length == 2
                             #no_bounds_check {
-                                options.mc_begin = (mc^)[0];
-                                options.mc_end   = (mc^)[1];
+                                options.mc_begin = mc[0];
+                                options.mc_end   = mc[1];
                             }
                         }
                     } else {
@@ -294,8 +291,8 @@ main :: proc() {
     if !options.override_sc {
         sc: [dynamic]string;
         
-        append(&sc, "//");
-        options.single_comments = &sc;
+        append(& sc, "//");
+        options.single_comments = sc;
     }
     
     if !options.override_mc {
