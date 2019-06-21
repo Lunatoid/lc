@@ -36,7 +36,6 @@ print_counts :: proc(counts: [COLUMNS]u64) {
     fmt.println();
 }
 
-// @TODO: buffering the input into a string and then printing it is probably faster
 print_seperator:: proc(longest_path: int) {
     pad := strings.right_justify("-", longest_path + PATH_PADDING, "-");
     defer delete(pad);
@@ -105,7 +104,7 @@ show_help :: proc() {
 parse_comma_options :: proc(s: string) -> ^[dynamic]string {
     opts: [dynamic]string;
     
-    for true {
+    for {
         index := strings.index_any(s, ",");
     
         if index == -1 do break;
@@ -202,7 +201,7 @@ main :: proc() {
                 set = arg[index + 1:];
             }
             
-            switch (opt) {
+            switch opt {
                 case "-h", "--help":
                     show_help();
                     return;
@@ -324,7 +323,7 @@ main :: proc() {
     // Split extentions
     exts: [dynamic]string;
     
-    for true {
+    for {
         index := strings.index_any(options.extensions, ".");
     
         if index == -1 do break;
@@ -367,8 +366,8 @@ main :: proc() {
         delete(entries);
     }
     
-    for i in 0..<len(files) {
-        entries[i].info = files[i];
+    for file, i in files {
+        entries[i].info = file;
     }
     
     // Find the longest path
@@ -535,6 +534,7 @@ scan_file_threaded:: proc(t: ^thread.Thread) -> int {
 @private
 scan_file_direct :: proc(entry: ^Scan_Entry, options: ^Options) -> int {
     file, error := os.open(entry.info.path);
+    defer if error == 0 do os.close(file);
     
     if error != os.ERROR_NONE {
         fmt.printf("[!] cannot open file '%v', skipping... (error code: %v)\n", entry.info.path, error);
@@ -544,7 +544,7 @@ scan_file_direct :: proc(entry: ^Scan_Entry, options: ^Options) -> int {
     in_comment := false;
     
     cont := true;
-    for cont {
+    scan_loop: for cont {
         full_line: string;
         cont, full_line = fs.getline(file, options.buffer_size);
         defer if len(full_line) > 0 do delete(full_line);
@@ -562,17 +562,14 @@ scan_file_direct :: proc(entry: ^Scan_Entry, options: ^Options) -> int {
         if !in_comment {
             skip_line := false;
             
-            for i in 0..<len(options.single_comments) {
-                if len(options.single_comments[i]) > len(line) do continue;
+            for sc in options.single_comments {
+                if len(sc) > len(line) do continue;
                 
-                if strings.contains(line, options.single_comments[i]) {
+                if strings.contains(line, sc) {
                     entry.comment_count += 1;
-                    skip_line = true;
-                    break;
+                    continue scan_loop;
                 }
             }
-            
-            if skip_line do continue;
         }
         
         if len(line) >= len(options.mc_begin) &&
@@ -596,6 +593,5 @@ scan_file_direct :: proc(entry: ^Scan_Entry, options: ^Options) -> int {
     }
         
     entry.scanned = true;
-    os.close(file);
     return 0;
 }
