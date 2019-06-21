@@ -1,4 +1,4 @@
-package main
+package lc
 
 import "core:fmt"
 import "core:os"
@@ -20,104 +20,6 @@ COLUMNS :: len(categories);
 
 PATH_PADDING :: 1;
 HEADER_WIDTH :: 16;
-
-print_counts :: proc(counts: [COLUMNS]u64) {
-    for i in 0..<len(counts) {
-        count_len := strings.rune_count(fmt.tprintf("%v", counts[i]));
-    
-        text := fmt.aprintf("%v |", counts[i]);
-        pad  := strings.right_justify(" ", HEADER_WIDTH - count_len - 1, " ");
-        
-        fmt.printf("%v%v", pad, text);
-        
-        delete(text);
-        delete(pad);
-    }
-    fmt.println();
-}
-
-print_seperator:: proc(longest_path: int) {
-    pad := strings.right_justify("-", longest_path + PATH_PADDING, "-");
-    defer delete(pad);
-    
-    fmt.printf("%v|", pad);
-    
-    for in 0..<COLUMNS {
-        for in 0..<HEADER_WIDTH {
-            fmt.printf("-");
-        }
-        fmt.printf("|");
-    }
-    fmt.println();
-}
-
-print_header :: proc(longest_path: int) {
-    {
-        pad := strings.right_justify(" ", longest_path + PATH_PADDING, " ");    
-        fmt.printf("%v|", pad);
-        delete(pad);
-    }
-    
-    for i in 0..<COLUMNS {
-        pad := strings.right_justify(" ", HEADER_WIDTH - len(categories[i]) - 2, " ");
-        fmt.printf(" %v%v |", categories[i], pad);
-        delete(pad);
-    }
-    fmt.println();
-}
-
-show_help :: proc() {
-    fmt.printf("Usage: %s [options] <directories...>\n\n", os.args[0]);
-    fmt.printf("  Options:\n");
-    fmt.printf("      -h  --help           | Show this help screen\n");
-    fmt.printf("                           |\n");
-    fmt.printf("      -r  --recursive      | recursively search directories\n");
-    fmt.printf("                           | default: false\n");
-    fmt.printf("                           |\n");
-    fmt.printf("      -e  --extensions     | set file extensions to match\n");
-    fmt.printf("                           | example: -e=.php.js\n");
-    fmt.printf("                           | default: .cpp.h\n");
-    fmt.printf("                           |\n");
-    fmt.printf("      -sc --single-comment | sets the single line comment delimiter\n");
-    fmt.printf("                           | example: -sc=//,#\n");
-    fmt.printf("                           | default: //\n");
-    fmt.printf("                           |\n");
-    fmt.printf("      -mc --multi-comment  | sets the multiline comment delimiters\n");
-    fmt.printf("                           | example: -mc=/*,*/\n");
-    fmt.printf("                           | default: /*,*/\n");
-    fmt.printf("                           |\n");
-    fmt.printf("      -t  --threads        | set the amount of threads it will use\n");
-    fmt.printf("                           | example: -t=1\n");
-    fmt.printf("                           | default: 4\n");
-    fmt.printf("                           |\n");
-    fmt.printf("      -b  --buffer         | sets the size of the getline buffer in bytes (more ram usage, faster, less reads)\n");
-    fmt.printf("                           | example: -b=64\n");
-    fmt.printf("                           | default: 32\n");
-    fmt.printf("                           |\n");
-    fmt.printf("      -fp  --full-paths    | shows the full filepath instead of just the filename\n");
-    fmt.printf("                           | default: false\n");
-    fmt.printf("                           |\n");
-    fmt.printf("      -or  --only-results  | don't show the per-file results, just the total sum\n");
-    fmt.printf("                           | default: false\n");
-}
-
-parse_comma_options :: proc(s: string) -> [dynamic]string {
-    opts: [dynamic]string;
-    
-    for {
-        index := strings.index_any(s, ",");
-    
-        if index == -1 do break;
-        
-        new_str := s[:index];
-        
-        append(&opts, new_str);
-        s = s[index+1:];
-    }
-    
-    append(&opts, s);
-    return opts;
-}
 
 Scan_Entry :: struct {
     info:          fs.File_Info,
@@ -591,4 +493,106 @@ scan_file_direct :: proc(entry: ^Scan_Entry, options: ^Options) -> int {
         
     entry.scanned = true;
     return 0;
+}
+
+@private
+print_counts :: proc(counts: [COLUMNS]u64) {
+    for i in 0..<len(counts) {
+        count_len := strings.rune_count(fmt.tprintf("%v", counts[i]));
+    
+        text := fmt.aprintf("%v |", counts[i]);
+        pad  := strings.right_justify(" ", HEADER_WIDTH - count_len - 1, " ");
+        
+        fmt.printf("%v%v", pad, text);
+        
+        delete(text);
+        delete(pad);
+    }
+    fmt.println();
+}
+
+@private
+print_seperator:: proc(longest_path: int) {
+    pad := strings.right_justify("-", longest_path + PATH_PADDING, "-");
+    defer delete(pad);
+    
+    fmt.printf("%v|", pad);
+    
+    for in 0..<COLUMNS {
+        for in 0..<HEADER_WIDTH {
+            fmt.printf("-");
+        }
+        fmt.printf("|");
+    }
+    fmt.println();
+}
+
+@private
+print_header :: proc(longest_path: int) {
+    {
+        pad := strings.right_justify(" ", longest_path + PATH_PADDING, " ");    
+        fmt.printf("%v|", pad);
+        delete(pad);
+    }
+    
+    for i in 0..<COLUMNS {
+        pad := strings.right_justify(" ", HEADER_WIDTH - len(categories[i]) - 2, " ");
+        fmt.printf(" %v%v |", categories[i], pad);
+        delete(pad);
+    }
+    fmt.println();
+}
+
+@private
+show_help :: proc() {
+    fmt.printf("Usage: %s [options] <directories...>\n\n", os.args[0]);
+    fmt.printf("  Options:\n");
+    fmt.printf("      -h  --help           | Show this help screen\n");
+    fmt.printf("                           |\n");
+    fmt.printf("      -r  --recursive      | recursively search directories\n");
+    fmt.printf("                           | default: false\n");
+    fmt.printf("                           |\n");
+    fmt.printf("      -e  --extensions     | set file extensions to match\n");
+    fmt.printf("                           | example: -e=.php.js\n");
+    fmt.printf("                           | default: .cpp.h\n");
+    fmt.printf("                           |\n");
+    fmt.printf("      -sc --single-comment | sets the single line comment delimiter\n");
+    fmt.printf("                           | example: -sc=//,#\n");
+    fmt.printf("                           | default: //\n");
+    fmt.printf("                           |\n");
+    fmt.printf("      -mc --multi-comment  | sets the multiline comment delimiters\n");
+    fmt.printf("                           | example: -mc=/*,*/\n");
+    fmt.printf("                           | default: /*,*/\n");
+    fmt.printf("                           |\n");
+    fmt.printf("      -t  --threads        | set the amount of threads it will use\n");
+    fmt.printf("                           | example: -t=1\n");
+    fmt.printf("                           | default: 4\n");
+    fmt.printf("                           |\n");
+    fmt.printf("      -b  --buffer         | sets the size of the getline buffer in bytes (more ram usage, faster, less reads)\n");
+    fmt.printf("                           | example: -b=64\n");
+    fmt.printf("                           | default: 32\n");
+    fmt.printf("                           |\n");
+    fmt.printf("      -fp  --full-paths    | shows the full filepath instead of just the filename\n");
+    fmt.printf("                           | default: false\n");
+    fmt.printf("                           |\n");
+    fmt.printf("      -or  --only-results  | don't show the per-file results, just the total sum\n");
+    fmt.printf("                           | default: false\n");
+}
+
+@private
+parse_comma_options :: proc(s: string) -> [dynamic]string {
+    opts: [dynamic]string;
+    
+    for {
+        index := strings.index_any(s, ",");
+    
+        if index == -1 do break;
+        
+        new_str := s[:index];
+        append(&opts, new_str);
+        s = s[index+1:];
+    }
+    
+    append(&opts, s);
+    return opts;
 }
