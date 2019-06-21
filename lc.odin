@@ -202,75 +202,85 @@ main :: proc() {
                 set = arg[index + 1:];
             }
             
-            if opt == "-h" || opt == "--help" {
-                show_help();
-                return;
-            } else if opt == "-r" || opt == "--recursive" {
-                if set == "" {
-                    options.recursive = true;
-                } else {
-                    fmt.printf("[!] Unexpected arguments for option '%v'\n", opt);
-                }
-            } else if opt == "-e" || opt == "--extensions" {
-                if set != "" {
-                    options.override_ext = true;
-                    options.extensions = set;
-                } else {
-                    fmt.printf("[!] Expected arguments for option '%v'\n", opt);
-                }
-            } else if opt == "-sc" || opt == "--single-comment" {
-                if set != "" {
-                    options.override_sc = true;
-                    options.single_comments = parse_comma_options(set);
-                } else {
-                    fmt.printf("[!] Expected arguments for option '%v'\n", opt);
-                }
-            } else if opt == "-mc" || opt == "--multi-comment" {
-                if set != "" {
-                    mc := parse_comma_options(set);
+            switch (opt) {
+                case "-h", "--help":
+                    show_help();
+                    return;
                     
-                    defer delete(mc^);
-                                        
-                    if len(mc) != 2 {
-                        fmt.printf("[!] Expected 2 arguments for option '%v' but got %v", opt, len(mc));
+                case "-r", "--recursive":
+                    if set == "" {
+                        options.recursive = true;
                     } else {
-                        options.override_mc = true;
-                        
-                        // We know that the length == 2
-                        #no_bounds_check {
-                            options.mc_begin = (mc^)[0];
-                            options.mc_end   = (mc^)[1];
-                        }
+                        fmt.printf("[!] Unexpected arguments for option '%v'\n", opt);
                     }
-                } else {
-                    fmt.printf("[!] Expected arguments for option '%v'\n", opt);
-                }
-            } else if opt == "-t" || opt == "--threads" {
-                if set != "" {
-                    options.thread_count = strconv.parse_int(set);
-                } else {
-                    fmt.printf("[!] Expected arguments for option '%v'\n", opt);
-                }
-            } else if opt == "-b" || opt == "--buffer" {
-                if set != "" {
-                    options.buffer_size = strconv.parse_int(set);
-                } else {
-                    fmt.printf("[!] Expected arguments for option '%v'\n", opt);
-                }
-            } else if opt == "-fp" || opt == "--full-paths" {
-                if set == "" {
-                    options.full_paths = true;
-                } else {
-                    fmt.printf("[!] Unexpected arguments for option '%v'\n", opt);
-                }
-            } else if opt == "-or" || opt == "--only-results" {
-                if set == "" {
-                    options.only_results = true;
-                } else {
-                    fmt.println("[!] Unexpected arguments for option '%v'\n", opt);
-                }
-            } else {
-                fmt.printf("[!] Unknown option '%v'\n", opt);
+                
+                case "-e", "--extentions":
+                    if set != "" {
+                        options.override_ext = true;
+                        options.extensions = set;
+                    } else {
+                        fmt.printf("[!] Expected arguments for option '%v'\n", opt);
+                    }
+                    
+                case "-sc", "--single-comment":
+                    if set != "" {
+                        options.override_sc = true;
+                        options.single_comments = parse_comma_options(set);
+                    } else {
+                        fmt.printf("[!] Expected arguments for option '%v'\n", opt);
+                    }
+                    
+                case "-mc", "--multi-comment":
+                    if set != "" {
+                        mc := parse_comma_options(set);
+                        
+                        defer delete(mc^);
+                                            
+                        if len(mc) != 2 {
+                            fmt.printf("[!] Expected 2 arguments for option '%v' but got %v", opt, len(mc));
+                        } else {
+                            options.override_mc = true;
+                            
+                            // We know that the length == 2
+                            #no_bounds_check {
+                                options.mc_begin = (mc^)[0];
+                                options.mc_end   = (mc^)[1];
+                            }
+                        }
+                    } else {
+                        fmt.printf("[!] Expected arguments for option '%v'\n", opt);
+                    }
+                    
+                case "-t", "--threads":
+                    if set != "" {
+                        options.thread_count = strconv.parse_int(set);
+                    } else {
+                        fmt.printf("[!] Expected arguments for option '%v'\n", opt);
+                    }
+                    
+                case "-b", "--buffer":
+                    if set != "" {
+                        options.buffer_size = strconv.parse_int(set);
+                    } else {
+                        fmt.printf("[!] Expected arguments for option '%v'\n", opt);
+                    }
+                    
+                case "-fp", "--full-paths":
+                    if set == "" {
+                        options.full_paths = true;
+                    } else {
+                        fmt.printf("[!] Unexpected arguments for option '%v'\n", opt);
+                    }
+                    
+                case "-or", "--only-results":
+                    if set == "" {
+                        options.only_results = true;
+                    } else {
+                        fmt.println("[!] Unexpected arguments for option '%v'\n", opt);
+                    }
+                    
+                case:
+                    fmt.printf("[!] Unknown option '%v'\n", opt);
             }
         }
     }
