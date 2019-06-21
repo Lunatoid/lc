@@ -11,6 +11,7 @@ A command-line line counter for your code. Recursively scans files over multiple
 | -t  --threads        | Sets the number of threads             | -t=5         | 4       |
 | -b  --buffer         | Sets the size of the getline buffer    | -t=64        | 32      |
 | -fp --full-paths     | Shows the absolute path to the file    | -fp          | false   |
+| -or --only-results   | Doesn't show the per-file results      | -or          | false   |
 
 ## Notes
 ### Threads
