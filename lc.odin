@@ -320,8 +320,6 @@ main :: proc() {
         for next_file_index < len(entries) || !all_threads_done {
             for i := 0; i < len(threads); {
                 if t := threads[i]; thread.is_done(t) {
-                    e := entries[t.user_index];
-                
                     thread.destroy(t);    
                     ordered_remove(&threads, i);
                     
@@ -459,8 +457,6 @@ scan_file_direct :: proc(entry: ^Scan_Entry, options: ^Options) -> int {
         
         // Single-comment check
         if !in_comment {
-            skip_line := false;
-            
             for sc in options.single_comments {
                 if len(sc) > len(line) do continue;
                 
@@ -588,8 +584,7 @@ parse_comma_options :: proc(s: string) -> [dynamic]string {
     
         if index == -1 do break;
         
-        new_str := s[:index];
-        append(&opts, new_str);
+        append(&opts, s[:index]);
         s = s[index+1:];
     }
     
