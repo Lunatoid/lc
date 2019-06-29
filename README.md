@@ -53,3 +53,8 @@ Any line that is empty after trimming the whitespace and newlines.
 
 ### Code
 Any line that doesn't qualify as a comment or blank line.
+
+## Accuracy vs. Speed
+By default `lc` will be reading files over different threads.
+
+Because multithreading and I/O don't work nicely the `getline` sometimes returns garbage lines and your results will be inconsistent. If you want accuracy, run `lc` with `-t=1`, if you want speed you should run it threaded.
