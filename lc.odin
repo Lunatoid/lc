@@ -579,15 +579,16 @@ show_help :: proc() {
 parse_comma_options :: proc(s: string) -> [dynamic]string {
     opts: [dynamic]string;
     
+    ns := s;
     for {
-        index := strings.index_any(s, ",");
+        index := strings.index_any(ns, ",");
     
         if index == -1 do break;
         
-        append(&opts, s[:index]);
-        s = s[index+1:];
+        append(&opts, ns[:index]);
+        ns = ns[index+1:];
     }
     
-    append(&opts, s);
+    append(&opts, ns);
     return opts;
 }
